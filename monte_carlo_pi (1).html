@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>몬테카를로 방식으로 원주율 구하기</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: #f4f6f8;
+      color: #222;
+    }
+
+    header {
+      background: #222;
+      color: white;
+      padding: 22px;
+      text-align: center;
+    }
+
+    header h1 {
+      margin: 0;
+      font-size: 26px;
+    }
+
+    .container {
+      max-width: 980px;
+      margin: 24px auto;
+      padding: 0 16px;
+      display: grid;
+      grid-template-columns: 1fr 300px;
+      gap: 20px;
+    }
+
+    .card {
+      background: white;
+      border-radius: 14px;
+      padding: 18px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+    }
+
+    canvas {
+      width: 100%;
+      max-width: 620px;
+      height: auto;
+      display: block;
+      margin: 0 auto;
+      border: 1px solid #ccc;
+      background: white;
+    }
+
+    label {
+      display: block;
+      margin-top: 12px;
+      font-weight: bold;
+    }
+
+    input {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 9px;
+      margin-top: 6px;
+      border: 1px solid #bbb;
+      border-radius: 8px;
+      font-size: 15px;
+    }
+
+    button {
+      width: 100%;
+      padding: 11px;
+      margin-top: 12px;
+      border: none;
+      border-radius: 8px;
+      font-size: 15px;
+      cursor: pointer;
+      background: #222;
+      color: white;
+    }
+
+    button:hover {
+      background: #444;
+    }
+
+    .reset {
+      background: #777;
+    }
+
+    .reset:hover {
+      background: #555;
+    }
+
+    .stat {
+      padding: 10px 0;
+      border-bottom: 1px solid #eee;
+      font-size: 16px;
+    }
+
+    .stat strong {
+      display: inline-block;
+      min-width: 110px;
+    }
+
+    .formula {
+      line-height: 1.7;
+      font-size: 15px;
+    }
+
+    @media (max-width: 800px) {
+      .container {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>몬테카를로 방식으로 원주율 구하기</h1>
+  </header>
+
+  <div class="container">
+    <section class="card">
+      <canvas id="canvas" width="600" height="600"></canvas>
+    </section>
+
+    <aside class="card">
+      <label for="targetCount">찍을 점 개수</label>
+      <input id="targetCount" type="number" value="10000" min="100" step="100" />
+
+      <label for="speed">한 번에 찍을 점 개수</label>
+      <input id="speed" type="number" value="100" min="1" step="10" />
+
+      <button id="startBtn">시작 / 일시정지</button>
+      <button id="resetBtn" class="reset">초기화</button>
+
+      <div class="stat"><strong>전체 점:</strong> <span id="total">0</span></div>
+      <div class="stat"><strong>원 안 점:</strong> <span id="inside">0</span></div>
+      <div class="stat"><strong>π 근사값:</strong> <span id="piValue">0</span></div>
+      <div class="stat"><strong>오차:</strong> <span id="error">0</span></div>
+
+      <div class="formula">
+        <p><b>원리</b></p>
+        <p>
+          한 변의 길이가 2인 정사각형 안에 반지름 1인 원을 생각한다.<br>
+          정사각형의 넓이는 4이고, 원의 넓이는 π이다.<br>
+          따라서 무작위 점 중 원 안에 들어간 비율은 대략 π / 4가 된다.
+        </p>
+        <p>
+          그래서 원주율은 다음처럼 구할 수 있다.<br>
+          π ≈ 4 × (원 안의 점 개수 / 전체 점 개수)
+        </p>
+      </div>
+    </aside>
+  </div>
+
+  <script>
+    const canvas = document.getElementById("canvas");
+    const ctx = canvas.getContext("2d");
+
+    const totalText = document.getElementById("total");
+    const insideText = document.getElementById("inside");
+    const piValueText = document.getElementById("piValue");
+    const errorText = document.getElementById("error");
+
+    const targetInput = document.getElementById("targetCount");
+    const speedInput = document.getElementById("speed");
+    const startBtn = document.getElementById("startBtn");
+    const resetBtn = document.getElementById("resetBtn");
+
+    let total = 0;
+    let inside = 0;
+    let running = false;
+
+    const size = canvas.width;
+    const radius = size / 2;
+    const centerX = radius;
+    const centerY = radius;
+
+    function drawBase() {
+      ctx.clearRect(0, 0, size, size);
+
+      ctx.strokeStyle = "#222";
+      ctx.lineWidth = 2;
+      ctx.strokeRect(0, 0, size, size);
+
+      ctx.beginPath();
+      ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+      ctx.strokeStyle = "#222";
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.moveTo(centerX, 0);
+      ctx.lineTo(centerX, size);
+      ctx.moveTo(0, centerY);
+      ctx.lineTo(size, centerY);
+      ctx.strokeStyle = "#ddd";
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    }
+
+    function updateStats() {
+      const pi = total === 0 ? 0 : 4 * inside / total;
+      const error = total === 0 ? 0 : Math.abs(Math.PI - pi);
+
+      totalText.textContent = total.toLocaleString();
+      insideText.textContent = inside.toLocaleString();
+      piValueText.textContent = pi.toFixed(8);
+      errorText.textContent = error.toFixed(8);
+    }
+
+    function drawPoint(x, y, isInside) {
+      ctx.beginPath();
+      ctx.arc(x, y, 2, 0, Math.PI * 2);
+      ctx.fillStyle = isInside ? "#1e88e5" : "#e53935";
+      ctx.fill();
+    }
+
+    function addPoints(count) {
+      for (let i = 0; i < count; i++) {
+        const x = Math.random() * size;
+        const y = Math.random() * size;
+
+        const dx = x - centerX;
+        const dy = y - centerY;
+        const isInside = dx * dx + dy * dy <= radius * radius;
+
+        if (isInside) inside++;
+        total++;
+
+        drawPoint(x, y, isInside);
+      }
+      updateStats();
+    }
+
+    function animate() {
+      if (!running) return;
+
+      const target = Number(targetInput.value);
+      const speed = Number(speedInput.value);
+
+      if (total >= target) {
+        running = false;
+        return;
+      }
+
+      const remaining = target - total;
+      addPoints(Math.min(speed, remaining));
+
+      requestAnimationFrame(animate);
+    }
+
+    startBtn.addEventListener("click", () => {
+      running = !running;
+      if (running) animate();
+    });
+
+    resetBtn.addEventListener("click", () => {
+      running = false;
+      total = 0;
+      inside = 0;
+      drawBase();
+      updateStats();
+    });
+
+    drawBase();
+    updateStats();
+  </script>
+</body>
+</html>
